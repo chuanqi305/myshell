@@ -1,0 +1,8 @@
+PROJECT(server)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+set(CMAKE_C_FLAGS " -g -Wall ")
+AUX_SOURCE_DIRECTORY(. DIR_SRCS)
+ADD_EXECUTABLE(server ${DIR_SRCS})
+ADD_LIBRARY(test SHARED test.c)
+include_directories(/usr/include/libxml2)
+target_link_libraries(server xml2)

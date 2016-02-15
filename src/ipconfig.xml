@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="gb2312" ?>
+<nas>
+
+<no meaning="取消配置" />
+<ip meaning="设置系统IP地址" func="nas_setip" attrib="single">
+	<dev meaning="网络接口" para="string" paraid="0" functab="nas_tab_interface">
+		<address meaning="IP地址,例如:192.168.1.1" para="ip" paraid="1"/>
+		<mask meaning="子网掩码，例如255.255.255.0" para="ip" paraid="2"/>
+		<gw meaning="默认网关" para="ip" paraid="3"/>
+	</dev>
+</ip>
+<bonding meaning="网卡绑定" func="nas_bonding" attrib="single">
+	<dev meaning="要绑定的网卡，多个网卡逗号隔开" para="string" paraid="0" >
+		<address meaning="IP地址,例如:192.168.1.1" para="ip" paraid="1"/>
+		<mask meaning="子网掩码，例如255.255.255.0" para="ip" paraid="2"/>
+		<gw meaning="默认网关" para="ip" paraid="3"/>
+	</dev>	
+	<name meaning="名称" para="string" paraid="4"/>
+</bonding>
+<ping meaning="ping命令" func="nas_ping" attrib="single" para="ip" paraid="0"/>
+<shutdown meaning="关闭服务器" attrib="single" func="nas_shutdown"/>
+<reboot meaning="重启服务器" attrib="single" func="nas_reboot"/>
+<update meaning="升级服务器，将升级包放在windows共享中" attrib="single" func="nas_update">
+	<ip meaning="升级包所在的共享地址" para="ip" paraid="0">
+		<dir meaning="升级包所在目录" para="string" paraid="1">
+			<file meaning="升级包文件名" para="string" paraid="2">
+				<user meaning="连接服务器需要的用户名" para="string" paraid="3">
+					<password meaning="连接服务器需要的密码" para="string" paraid="4"/>
+				</user>
+			</file>
+		</dir>
+	</ip>
+</update>
+<show meaning="查看配置" />
+<exit meaning="退出系统" attrib="single" func="nas_exit"/>
+</nas>
+
