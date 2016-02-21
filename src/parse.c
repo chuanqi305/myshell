@@ -750,6 +750,7 @@ struct tmp_cmd_node
 	struct list_head list;
 	struct cmd_node *node;
 };
+
 #define MATCH_STATUS_NOTMATCH 			0
 #define MATCH_STATUS_FULLMATCH 		1
 #define MATCH_STATUS_IS_PREFIX 			2
@@ -1099,6 +1100,7 @@ static void get_cmd_functions(struct cmd_node *cmd, struct parse_context *ctx)
 		ctx->post_hook = cmd->post_hook;
 	}
 }
+
 static int word_to_argv_list(struct list_head *cmd_list, struct list_head *word_list, struct list_head *argv_list, struct parse_context *ctx)
 {
 	struct list_head list_tmp;
@@ -1379,6 +1381,7 @@ static int parse_cmd(char *cmd, struct parse_context *ctx)
 	clear_word_list(&word_list);
 	return ret;
 }
+
 void destroy_parse_msg(struct parse_msg *msg)
 {
 	free_prompt_words_internal(msg->prompt_word);
@@ -1392,6 +1395,7 @@ void destroy_parse_msg(struct parse_msg *msg)
 	xfree(msg->cmd);
 	msg->cmd = NULL;
 }
+
 int analysis_cmd(char *cmd, struct parse_msg *msg)
 {
 	struct parse_context ctx;

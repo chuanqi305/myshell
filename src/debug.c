@@ -35,5 +35,4 @@ void debug_set_file(char *path){
 		fclose(debug_fp);
 		debug_fp = fp;
 	}
-	
 }
