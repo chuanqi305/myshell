@@ -1,3 +1,3 @@
 AUTOMAKE_OPTIONS = foreign
-bin_PROGRAMS = test
-yacmd_SOURCES = test.c
+lib_LTLIBRARIES = libhello.la
+libhello_la_SOURCES = hello.c

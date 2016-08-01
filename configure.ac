@@ -9,6 +9,7 @@ AC_CONFIG_HEADERS([config.h])
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_LIBTOOL
 
 # Checks for libraries.
 
@@ -24,5 +25,5 @@ AC_FUNC_MALLOC
 AC_CHECK_FUNCS([memset strstr])
 PKG_CHECK_MODULES(XML, libxml-2.0 >= 2.4)
 
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile test/Makefile])
 AC_OUTPUT
