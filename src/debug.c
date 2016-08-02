@@ -6,7 +6,7 @@
 #include "config.h"
 
 FILE * debug_fp = NULL;
-int debug_level = 0;
+int debug_level = 7;
 
 void debug_init()
 {

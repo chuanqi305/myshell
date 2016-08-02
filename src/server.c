@@ -22,6 +22,5 @@ int main(int argc,char *argv[])
 	prompt_cmd(workdir, &msg);
 	
 	free_cmd_tree();
-	free_errno_list();
 	return 0;
 }

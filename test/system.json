@@ -1,0 +1,131 @@
+[
+  {
+    "keyword": "no",
+    "meaning": "取消配置"
+  },
+  {
+    "keyword": "ip",
+    "meaning": "设置系统IP地址",
+    "func": "libtest.so:hello",
+    "attrib": "single",
+    "subpara": [
+      {
+        "keyword": "dev",
+        "meaning": "网络接口",
+        "para": "string",
+        "paraid": "0",
+        "functab": "sys_tab_interface",
+        "subpara": [
+          {
+            "keyword": "address",
+            "meaning": "IP地址,例如:192.168.1.1",
+            "para": "ip",
+            "paraid": "1"
+          },
+          {
+            "keyword": "mask",
+            "meaning": "子网掩码，例如255.255.255.0",
+            "para": "ip",
+            "paraid": "2"
+          },
+          {
+            "keyword": "gw",
+            "meaning": "默认网关",
+            "para": "ip",
+            "paraid": "3"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "keyword": "ping",
+    "meaning": "ping命令",
+    "func": "libtest.so:hello",
+    "attrib": "single",
+    "para": "ip",
+    "paraid": "0"
+  },
+  {
+    "keyword": "time",
+    "meaning": "设置或查看系统时间",
+    "attrib": "single",
+    "func": "libtest.so:hello",
+    "subpara": [
+      {
+        "keyword": "set",
+        "meaning": "设置系统时间",
+        "attrib": "single",
+        "subpara": [
+          {
+            "keyword": "date",
+            "meaning": "日期，格式为 yyyy-mm-dd",
+            "para": "date",
+            "paraid": "0"
+          },
+          {
+            "keyword": "clock",
+            "meaning": "时钟，格式为 hh:mm:ss",
+            "para": "time",
+            "paraid": "1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "keyword": "statistic",
+    "meaning": "系统统计信息",
+    "attrib": "single",
+    "subpara": [
+      {
+        "keyword": "meminfo",
+        "func": "libtest.so:hello",
+        "meaning": "内存利用率",
+        "attrib": "single"
+      },
+      {
+        "keyword": "cpuinfo",
+        "func": "libtest.so:hello",
+        "meaning": "CPU利用率",
+        "attrib": "single"
+      },
+      {
+        "keyword": "diskinfo",
+        "func": "libtest.so:hello",
+        "meaning": "磁盘利用率",
+        "attrib": "single",
+        "subpara": [
+          {
+            "keyword": "disk",
+            "meaning": "磁盘或目录",
+            "para": "string",
+            "paraid": "0"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "keyword": "shutdown",
+    "meaning": "关闭服务器",
+    "attrib": "single",
+    "func": "libtest.so:hello"
+  },
+  {
+    "keyword": "reboot",
+    "meaning": "重启服务器",
+    "attrib": "single",
+    "func": "libtest.so:hello"
+  },
+  {
+    "keyword": "show",
+    "meaning": "查看配置"
+  },
+  {
+    "keyword": "exit",
+    "meaning": "退出系统",
+    "attrib": "single",
+    "func": "libtest.so:hello"
+  }
+]

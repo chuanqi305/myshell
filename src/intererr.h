@@ -13,7 +13,7 @@ struct internal_errno g_internal_error =
 {
 	{
 		PARSE_ERROR_UNTERMINAL_QTUOTE,
-		"quota not terminaled."
+		"quote not terminaled."
 	},
 	{
 		PARSE_ERROR_UNKNOWN_KEYWORD,

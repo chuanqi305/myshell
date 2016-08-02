@@ -17,14 +17,86 @@ struct JSON
 		int boolean;
 		double number;
 	}data;	
-	int is_integer; /*only for type is number, not a json specs*/
-	long long int integer;
+
 	struct JSON * next;
+	struct JSON * parent;
+
+	int is_integer; /*only for type is number, not a json specs*/
+	long long int integer; /*only for number type is integer*/
+	char * position;/*for debug or trace*/
 };
+
+char *json_get_type(struct JSON *json)
+{
+	return json?json->type:"undefined";
+}
+
+char *json_get_keyword(struct JSON *json)
+{
+	return json?json->keyword:NULL;
+}
+
+char *json_get_data_string(struct JSON *json)
+{
+	return json?json->data.string:NULL;
+}
+
+struct JSON *json_get_data_object(struct JSON *json)
+{
+	return json?json->data.object:NULL;
+}
+
+double json_get_data_number(struct JSON *json)
+{
+	return json?json->data.number:0;
+}
+
+int json_get_data_boolean(struct JSON *json)
+{
+	return json?json->data.boolean:0;
+}
+
+struct JSON * json_get_next(struct JSON *json)
+{
+	return json?json->next:NULL;
+}
+
+struct JSON * json_get_item_by_keyword(struct JSON *json,char *keyword)
+{
+	if(strcmp(json->type,"object")){
+		return NULL;
+	}
+	json = json->data.object;
+	while(json!=NULL){
+		if(strcmp(json->keyword,keyword)==0){
+			return json;	
+		}
+		json = json->next;
+	}
+	return NULL;
+}
+
+struct JSON * json_get_parent(struct JSON *json)
+{
+	return json->parent;
+}
+
+static void offset_to_line(char *string, int offset, int *line, int *ch);
+int json_get_line(struct JSON *json)
+{
+	int line = 0, c = 0, offset = 0;
+	struct JSON *root = json;
+	while(root->parent!=NULL){
+		root = root->parent;
+	}
+	offset = (json->position) - (root->position);
+	offset_to_line(root->position, offset, &line, &c);
+	return line;
+}
 
 typedef int (*parse_func_t)(char *start, struct JSON *node, int *offset, char **msg);
 
-struct JSON * alloc_node(){
+static struct JSON * alloc_node(){
 	struct JSON *json = (struct JSON *)malloc(sizeof(struct JSON));
 	memset(json, 0, sizeof(*json));
 	json->type = "undefined";
@@ -44,6 +116,10 @@ void json_release(struct JSON *json)
 		return;
 	}
 	else{
+		if(json->parent==NULL){
+			free(json->position);
+			json->position = NULL;
+		}
 		while(json!=NULL){
 			tmp = json->next;
 			if(json->keyword!=NULL){
@@ -61,19 +137,19 @@ void json_release(struct JSON *json)
 	}
 }
 
-int skip_white_char(char *start)
+static int skip_white_char(char *start)
 {
 	char * str = start;
 	while(isspace(*(str++)));
 	return str - start - 1;	
 }
 
-int match_syntax(char * syntax, char * next)
+static int match_syntax(char * syntax, char * next)
 {
 	return (strchr(syntax, *next)!=NULL);
 }
 
-int get_next_string(char * start, char ** string, int *offset, char **msg)
+static int get_next_string(char * start, char ** string, int *offset, char **msg)
 {
 	char *json = start;
 	char *str = NULL;
@@ -113,9 +189,9 @@ end:
 	return 0;
 }
 
-int json_parse_all(char *start, struct JSON *node, int *offset, char **msg);
+static int json_parse_all(char *start, struct JSON *node, int *offset, char **msg);
 
-int json_parse_key_value(char *start, struct JSON *node, int *offset, char **msg)
+static int json_parse_key_value(char *start, struct JSON *node, int *offset, char **msg)
 {
 	int offs = 0;
 	char *json = start;
@@ -145,7 +221,7 @@ end:
 	return ret;
 }
 
-int json_parse_subnode(char *start, struct JSON *node, int *offset, char endstr, parse_func_t func, char **msg)
+static int json_parse_subnode(char *start, struct JSON *node, int *offset, char endstr, parse_func_t func, char **msg)
 {
 	int offs = 0;
 	char *json = start;
@@ -167,6 +243,7 @@ int json_parse_subnode(char *start, struct JSON *node, int *offset, char endstr,
 			ret = -1;
 			goto end;
 		}
+		next->parent = node;
 		*newnode = next;
 		json += skip_white_char(json);
 		ret = func(json, next, &offs, msg);	
@@ -197,22 +274,22 @@ end:
 	return ret;
 }
 
-int json_parse_string(char *start, struct JSON *node, int *offset, char **msg)
+static int json_parse_string(char *start, struct JSON *node, int *offset, char **msg)
 {
 	return get_next_string(start, &node->data.string, offset, msg);
 }
 
-int json_parse_object(char *start, struct JSON *node, int *offset, char **msg)
+static int json_parse_object(char *start, struct JSON *node, int *offset, char **msg)
 {
 	return json_parse_subnode(start, node, offset, '}', json_parse_key_value, msg);
 }
 
-int json_parse_array(char *start, struct JSON *node, int *offset, char **msg)
+static int json_parse_array(char *start, struct JSON *node, int *offset, char **msg)
 {
 	return json_parse_subnode(start, node, offset, ']', json_parse_all, msg);
 }
 
-int json_parse_boolean(char *start, struct JSON *json, int *offset, char **msg)
+static int json_parse_boolean(char *start, struct JSON *json, int *offset, char **msg)
 {
 	if(strncmp(start,"true", 4)==0){
 		json->data.boolean = 1;
@@ -228,7 +305,7 @@ int json_parse_boolean(char *start, struct JSON *json, int *offset, char **msg)
 	return -1;
 }
 
-int json_parse_null(char *start, struct JSON *json, int *offset, char **msg)
+static int json_parse_null(char *start, struct JSON *json, int *offset, char **msg)
 {
 	if(strncmp(start,"null", 4)==0){
 		*offset = 4;
@@ -238,7 +315,7 @@ int json_parse_null(char *start, struct JSON *json, int *offset, char **msg)
 	return -1;
 }
 
-int json_parse_number(char * start, struct JSON *node, int *offset, char **msg)
+static int json_parse_number(char * start, struct JSON *node, int *offset, char **msg)
 {
 	char *json;
 	char *json2;
@@ -262,7 +339,7 @@ end:
 	return ret;
 }
 
-struct json_parse_syntax json_syntax[] = 
+static struct json_parse_syntax json_syntax[] = 
 {
 	{"{", json_parse_object, "object"},
 	{"[", json_parse_array, "array"},
@@ -272,7 +349,7 @@ struct json_parse_syntax json_syntax[] =
 	{"\"", json_parse_string, "string"}
 };
 
-int json_parse_all(char *start, struct JSON *node, int *offset, char **msg)
+static int json_parse_all(char *start, struct JSON *node, int *offset, char **msg)
 {
 	int ret = 0;
 	char *json = start;
@@ -281,6 +358,7 @@ int json_parse_all(char *start, struct JSON *node, int *offset, char **msg)
 	int len = sizeof(json_syntax)/sizeof(json_syntax[0]);
 	int i;
 
+	node->position = start;
 	json += skip_white_char(json);
 
 	if(*json=='\0'){
@@ -303,7 +381,7 @@ end:
 	return ret;
 }
 
-void offset_to_line(char *string, int offset, int *line, int *ch)
+static void offset_to_line(char *string, int offset, int *line, int *ch)
 {
 	int index;
 	int lindex = 1,cindex = 1;
@@ -328,19 +406,38 @@ struct JSON *json_parse(char *string)
 	int ret = 0;
 	int offset = 0; 
 	char *msg = "no error.";
+	char *tmp;
 	int line, c;
+	int len = strlen(string);
+	char *str = NULL;
+
+	if(string==NULL){
+		return NULL;
+	}
+	str = (char *)malloc(len + 2);
+	if(str==NULL){
+		return NULL;
+	}
+	memcpy(str, string, len+1);
 
 	root = alloc_node();
 	if(root==NULL){
 		return NULL;
 	}
-	ret = json_parse_all(string, root, &offset, &msg);
+	ret = json_parse_all(str, root, &offset, &msg);
 	if(ret==0){
 		return root;
 	}
 	else{
-		offset_to_line(string, offset, &line, &c);
+		offset_to_line(str, offset, &line, &c);
 		printf("error at line:%d character:%d, %s\n", line, c, msg);
+		tmp = str + offset;
+		while(*tmp!='\0' && *tmp!='\n'){
+			tmp++;
+		}	
+		*tmp = '\0';
+		printf("%s\n", str + offset - (c - 1));
+		printf("%*c\n", c, '^');
 		json_release(root);
 		return NULL;
 	}
@@ -380,41 +477,49 @@ error:
 	return json;
 }
 
-void print_json_prefix(struct JSON *node, char * prefix)
+static void print_json_prefix(struct JSON *node, char * prefix)
 {
 	char new_prefix[256];
+	char *keyword, *type;
+	struct JSON *child, *next;
+
+	keyword = json_get_keyword(node);
+	type = json_get_type(node);
+	child = json_get_data_object(node);
+	next = json_get_next(node);
 
 	printf("%s",prefix);
-	if(node->keyword!=NULL){
-		printf("\"%s\": ", node->keyword);
-		if((strcmp(node->type,"object")==0
-			|| strcmp(node->type, "array")==0) 
-			&& node->data.object!=NULL){
+	if(keyword!=NULL){
+		printf("\"%s\": ", keyword);
+		if((strcmp(type,"object")==0 || strcmp(type,"array")==0) && child!=NULL){
 			/*printf("\n%s",prefix);*/
 		}
 	}
-	if(strcmp(node->type,"string")==0){
-		printf("\"%s\"",node->data.string);
+	else{
+		printf("<null>");
 	}
-	else if(strcmp(node->type,"number")==0){
+	if(strcmp(type,"string")==0){
+		printf("\"%s\"",json_get_data_string(node));
+	}
+	else if(strcmp(type,"number")==0){
 		if(node->is_integer){
 			printf("%lld",node->integer);
 		}
 		else{
-			printf("%f",node->data.number);
+			printf("%f",json_get_data_number(node));
 		}
 	}
-	else if(strcmp(node->type,"boolean")==0){
-		printf("%s",node->data.boolean?"true":"false");
+	else if(strcmp(type,"boolean")==0){
+		printf("%s",json_get_data_boolean(node)?"true":"false");
 	}
-	else if(strcmp(node->type,"null")==0){
+	else if(strcmp(type,"null")==0){
 		printf("null");
 	}
-	else if(strcmp(node->type,"object")==0){
+	else if(strcmp(type,"object")==0){
 		snprintf(new_prefix, sizeof(new_prefix), "%s  ", prefix);
-		if(node->data.object!=NULL){
+		if(child!=NULL){
 			printf("{\n");
-			print_json_prefix(node->data.object, new_prefix);
+			print_json_prefix(child, new_prefix);
 			printf("%s}",prefix);
 		}
 		else {
@@ -422,35 +527,27 @@ void print_json_prefix(struct JSON *node, char * prefix)
 		}
 	}
 	else if(strcmp(node->type,"array")==0){
-		if(node->data.object!=NULL){
+		if(child!=NULL){
 			snprintf(new_prefix, sizeof(new_prefix), "%s  ", prefix);
 			printf("[\n");
-			print_json_prefix(node->data.object, new_prefix);
+			print_json_prefix(child, new_prefix);
 			printf("%s]",prefix);
 		}
 		else {
 			printf("[]");
 		}
 	}
-	if(node->next){
+	if(next){
 		printf(",\n");
-		print_json_prefix(node->next,prefix);
+		print_json_prefix(next,prefix);
 	}
 	else{
 		printf("\n");
 	}
 }
 
-void print_json(struct JSON *root){
+void print_json(struct JSON *root)
+{
 	print_json_prefix(root, "");
 }
 
-int main(int argc, char **argv)
-{
-	struct JSON * json = json_parse_file(argv[1]);
-	if(json != NULL){
-		print_json(json);
-		json_release(json);
-	}
-	return 0;
-}

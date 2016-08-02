@@ -70,10 +70,7 @@ pconfig_node  get_next_node(pconfig_node current_node)
 	}
 	return tmp;
 }
-char *get_node_name(pconfig_node node)
-{
-	return (char *)node->name;
-}
+
 pconfig_attr get_node_first_attribute(pconfig_node node)
 {
 	return node->properties;

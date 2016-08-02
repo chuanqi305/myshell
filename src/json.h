@@ -1,0 +1,14 @@
+struct JSON;
+extern char *json_get_type(struct JSON *json);
+extern char *json_get_keyword(struct JSON *json);
+extern char *json_get_data_string(struct JSON *json);
+extern struct JSON *json_get_data_object(struct JSON *json);
+extern double json_get_data_number(struct JSON *json);
+extern int json_get_data_boolean(struct JSON *json);
+extern struct JSON * json_get_next(struct JSON *json);
+extern struct JSON * json_parse_file(char *path);
+extern struct JSON *json_parse(char *string);
+extern void json_release(struct JSON *json);
+extern void print_json(struct JSON *root);
+extern struct JSON * json_get_item_by_keyword(struct JSON *json,char *keyword);
+extern int json_get_line(struct JSON *json);

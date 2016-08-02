@@ -1,18 +1,17 @@
-#ifndef __READ_XML_H__
-#define __READ_XML_H__
-
-#include <libxml/parser.h>
+#ifndef __READ_JSON_H__
+#define __READ_JSON_H__
+#include "json.h"
 
 typedef struct config_tree{
 	char file_path[1024];
-	xmlDocPtr xml_doc;
+	struct JSON * json;
 } config_tree;
 
 typedef config_tree *pconfig_tree;
  
-typedef xmlNodePtr pconfig_node;
+typedef struct JSON *pconfig_node;
 
-typedef xmlAttrPtr pconfig_attr;
+typedef struct JSON *pconfig_attr;
 
 extern pconfig_tree load_config_tree(char *path);
 
@@ -33,5 +32,5 @@ extern char * get_attribute_value(pconfig_attr attr);
 extern void free_config_tree(pconfig_tree root);
 
 extern int get_node_line(pconfig_node node);
-#endif /*READ_XML_H__*/
+#endif /*READ_JSON_H__*/
 

@@ -1,4 +1,4 @@
-/*link list mcros from list.h **********************************************/
+/*link list mcros from list.h */
 #ifndef __COMMON_LIST_H__
 #define __COMMON_LIST_H__
 struct list_head {
@@ -86,5 +86,4 @@ static inline int list_empty(const struct list_head *head)
 	     prefetch(pos->member.next), &pos->member != (head); 	\
 	     pos = list_entry(pos->member.next, typeof(*pos), member))
 
-/*link list mcros from list.h end **********************************************/
 #endif /*__COMMON_LIST_H__*/

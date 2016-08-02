@@ -8,7 +8,7 @@
 #include "validate.h"
 #include "parse.h"
 #include "xmalloc.h"
-#include "readxml.h"
+#include "readjson.h"
 #include "loadfunc.h"
 
 struct cmd_node
@@ -41,17 +41,9 @@ struct parameter_type
 	validate_func_t validate;
 };
 
-struct errno_node
-{
-	struct list_head list;
-	int num;
-	char *meaning;
-};
-
 #define INVALID_ERRNO -99999999
 
 struct list_head g_root_list = LIST_HEAD_INIT(g_root_list);
-struct list_head g_errno_list = LIST_HEAD_INIT(g_errno_list);
 
 struct parameter_type default_types[] = 
 {
@@ -88,6 +80,11 @@ struct parameter_type default_types[] =
 			is_time
 		}
 };
+
+int dumb_func()
+{
+	CFG_ERRORLN("load function error !!!\n");
+}
 
 static void init_cmd_node(struct cmd_node *node){
 	memset(node,0,sizeof(*node));
@@ -131,7 +128,7 @@ static struct cmd_node *  _parse_cmd_node(pconfig_node node, struct list_head *l
 	struct cmd_node *cmd_tmp;
 	pconfig_attr attr;
 	
-	pconfig_node children;
+	pconfig_node subpara = NULL;
 	int ret = 0;
 
 	char *node_name;
@@ -144,20 +141,12 @@ static struct cmd_node *  _parse_cmd_node(pconfig_node node, struct list_head *l
 
 	int line = (int)get_node_line(node);
 	
-	node_name = get_node_name(node);
-
-	if(strcmp(node_name,CMD_NODE)==0){
-		cmd_node = (struct cmd_node *)xmalloc(sizeof(struct cmd_node));
-		if(cmd_node == NULL){
-			CFG_ERRORLN("no memory.");
-			return NULL;
-		}
-		init_cmd_node(cmd_node);
-	}
-	else{
-		CFG_ERRORLN("LINE %d:unknown node name %s.",line,node_name);
+	cmd_node = (struct cmd_node *)xmalloc(sizeof(struct cmd_node));
+	if(cmd_node == NULL){
+		CFG_ERRORLN("no memory.");
 		return NULL;
 	}
+	init_cmd_node(cmd_node);
 	
 	attr = get_node_first_attribute(node);
 	
@@ -165,6 +154,8 @@ static struct cmd_node *  _parse_cmd_node(pconfig_node node, struct list_head *l
 		
 		attr_name = get_attribute_name(attr);
 		attr_value = get_attribute_value(attr);
+	
+		printf("attr_name:%s\n",attr_name);
 		
 		if(strcmp(attr_name,CMD_KEYWORD)==0){
 			if(*attr_value!=0){
@@ -203,6 +194,7 @@ static struct cmd_node *  _parse_cmd_node(pconfig_node node, struct list_head *l
 			}
 			if(cmd_node->function==NULL){
 				CFG_ERRORLN("LINE %d:load function \"%s\" error of node \"%s\"",line,attr_value,node_name);
+				cmd_node->function = dumb_func;
 			}
 		}
 		else if(strcmp(attr_name,CMD_PROMPT_FUNC)==0){
@@ -227,6 +219,9 @@ static struct cmd_node *  _parse_cmd_node(pconfig_node node, struct list_head *l
 				goto error;
 			}
 		}
+		else if(strcmp(attr_name,CMD_SUBPARA)==0){
+			subpara = (pconfig_node)attr_value;
+		}
 		//TODO:add new attribute here
 		else{
 			CFG_ERRORLN("LINE %d:unrecognized attribute %s of node %s",line,attr_name,node_name);
@@ -238,15 +233,12 @@ static struct cmd_node *  _parse_cmd_node(pconfig_node node, struct list_head *l
 		goto error;
 	}
 	add_cmd_node(cmd_node,list);
-	
-	children = get_first_child_node(node);
-	if(children!=NULL){
-		while(children!=NULL){
-			cmd_tmp = _parse_cmd_node(children,&cmd_node->child);
-			if(cmd_tmp!=NULL)
-				cmd_tmp->parent = &cmd_node->list;
-			children = get_next_node(children);
-		}		
+
+	if(subpara!=NULL){
+		cmd_tmp = _parse_cmd_node(subpara,&cmd_node->child);
+		if(cmd_tmp!=NULL){
+			cmd_tmp->parent = &cmd_node->list;
+		}
 	}	
 	return cmd_node;
 error:
@@ -321,45 +313,6 @@ void free_cmd_tree()
 	clear_cmd_tree(&g_root_list);
 }
 
-void free_errno_list()
-{
-	struct list_head *tmp;
-	struct list_head *tmp2;
-	struct errno_node *node;
-	
-	struct list_head *list = &g_errno_list;
-
-	if(list_empty(list)){
-		return;
-	}
-	
-	list_for_each_safe(tmp,tmp2,list){
-		node = list_entry(tmp,struct errno_node,list);
-		list_del(tmp);
-		xfree(node->meaning);
-		xfree(node);
-	}
-}
-
-static int print_errno_list(struct list_head *root)
-{
-	struct list_head *tmp;
-	struct errno_node *node;
-	
-	struct list_head *list = root;
-
-	if(list_empty(list)){
-		CFG_PRINT("errno list empty!!!\n");
-		return 0;
-	}
-	
-	list_for_each(tmp,list){
-		node = list_entry(tmp,struct errno_node,list);
-		CFG_PRINT("%d===>%s\n",node->num,node->meaning);
-	}
-	return 0;
-}
-
 static void parse_cmd_node(pconfig_node node, struct list_head *list){
 	while(node!=NULL){
 		_parse_cmd_node(node, list);
@@ -367,63 +320,10 @@ static void parse_cmd_node(pconfig_node node, struct list_head *list){
 	}
 }
 
-static void parse_errno_node(pconfig_node conf_node, struct list_head *list){
-	pconfig_attr attr;
-	pconfig_node next;
-	struct errno_node *node;
-	char *attr_name;
-	char *attr_value;
-	int line = 0;
-	
-	next = conf_node;
-	while(next!=NULL){
-		line = (int)get_node_line(next);
-		node = (struct errno_node *)xmalloc(sizeof(struct errno_node));
-		if(node==NULL){
-			CFG_ERRORLN("no memory!");
-			exit(-1);
-		}
-		node->num = INVALID_ERRNO;
-		node->meaning = NULL;
-		
-		attr = get_node_first_attribute(next);
-		
-		while(attr!=NULL){
-			attr_name = get_attribute_name(attr);
-			attr_value = get_attribute_value(attr);
-			if(strcmp(attr_name,ERRNO_MEANING)==0){
-				node->meaning = (char *)xmalloc(strlen(attr_value)+5);
-				if(node->meaning==NULL){
-					CFG_ERRORLN("no memory!");
-					exit(-1);
-				}
-				sprintf(node->meaning,"%s",attr_value);
-			}
-			else if(strcmp(attr_name,ERRNO_NUM)==0){
-				if(sscanf(attr_value,"%d",&node->num)!=1){
-					CFG_ERRORLN("LINE %d:errno '%s' is not a num!",line,attr_value);
-				}
-			}
-			//TODO:add new errno attribute here.
-			else{
-				CFG_ERRORLN("LINE %d:unrecognized errno attribute %s.",line,attr_name);
-			}
-			attr = get_next_attribute(attr);
-		}
-		
-		if(node->num == INVALID_ERRNO){
-			CFG_ERRORLN("LINE %d:errno node has no errno.",line);
-		}
-		list_add_tail(&node->list,&g_errno_list);
-		next = get_next_node(next);
-	}
-}
-
 int load_param(char *config_file){
 	pconfig_tree tree = NULL;
 	pconfig_node root = NULL;
 
-	pconfig_node nodes = NULL;
 	pconfig_node children = NULL;
 	char *node_name = NULL;
 
@@ -435,33 +335,16 @@ int load_param(char *config_file){
 	}
 
 	root = get_root_node(tree);
-	CFG_INFOLN("get root name '%s'.",get_node_name(root));
+
 	if(root==NULL){
 		return -1;
 	}
 	
-	nodes = get_first_child_node(root);
-	while(nodes!=NULL){
-		node_name = get_node_name(nodes);
-		line = (int)get_node_line(nodes);
-		CFG_INFOLN("get node name '%s'.",node_name);
-		if(strcmp(CONTENT_CMD, node_name)==0){
-			children = get_first_child_node(nodes);
-			parse_cmd_node(children,&g_root_list);
-		}
-		else if(strcmp(CONTENT_ERRNO, node_name)==0){
-			children = get_first_child_node(nodes);
-			parse_errno_node(children,&g_errno_list);
-		}
-		//TODO:add more node type here
-		else{
-			CFG_ERRORLN("LINE %d:unrecognized xml node `%s' of xml file %s",line,node_name,config_file);
-		}
-		nodes = get_next_node(nodes);
-	}
+	children = get_first_child_node(root);
+	parse_cmd_node(children,&g_root_list);
+
 	free_config_tree(tree);
 	print_cmd_tree(&g_root_list," --");
-	print_errno_list(&g_errno_list);
 	return 0;
 }
 
