@@ -9,21 +9,22 @@
 
 struct JSON
 {
-	char *type; /*string|number|object|array|boolean|null|integer*/
+	char *type; /*string|number|object|array|boolean|null*/
 	char *keyword;
 	union{
 		struct JSON *object;
 		char *string;
 		int boolean;
 		double number;
-		long long int integer;
 	}data;	
+	int is_integer; /*only for type is number, not a json specs*/
+	long long int integer;
 	struct JSON * next;
 };
 
-typedef int (*parse_func_t)(char *start, struct JSON *node, int *offset);
+typedef int (*parse_func_t)(char *start, struct JSON *node, int *offset, char **msg);
 
-struct JSON * new_node(){
+struct JSON * alloc_node(){
 	struct JSON *json = (struct JSON *)malloc(sizeof(struct JSON));
 	memset(json, 0, sizeof(*json));
 	json->type = "undefined";
@@ -72,15 +73,15 @@ int match_syntax(char * syntax, char * next)
 	return (strchr(syntax, *next)!=NULL);
 }
 
-int get_next_string(char * start, char ** string, int *offset)
+int get_next_string(char * start, char ** string, int *offset, char **msg)
 {
 	char *json = start;
 	char *str = NULL;
 	int len = 0;
 
 	if(*json!='\"'){
-		printf("error at %s:%d:-->%s\n",__FUNCTION__,__LINE__,json);
-		return -1;
+		*msg = "keyword must be started with \" character.";
+		goto end;
 	}
 
 	json++;
@@ -92,26 +93,63 @@ int get_next_string(char * start, char ** string, int *offset)
 	}
 
 	if(*json=='\0'){
-		printf("error at %s:%d:-->%s\n",__FUNCTION__,__LINE__,json);
-		return -1;
+		*msg = "missing terminating \" character.";
+		goto end;
 	}
 	else{
 		len = json - start - 1;
 		str = (char *)malloc(len + 2);
+		if(str==NULL){
+			*msg = "no memory.";
+			goto end;
+		}
 		memcpy(str, start+1, len);
 		str[len] = '\0';
 		*string = str;
 	}
 	json++;
+end:
 	*offset =  json - start;
 	return 0;
 }
 
-int json_parse_subnode(char *start, struct JSON *node, int *offset, char endstr, parse_func_t func)
+int json_parse_all(char *start, struct JSON *node, int *offset, char **msg);
+
+int json_parse_key_value(char *start, struct JSON *node, int *offset, char **msg)
 {
 	int offs = 0;
 	char *json = start;
-	int ret = -1;
+	int ret = 0;
+
+	json += skip_white_char(json);
+	ret = get_next_string(json, &node->keyword, &offs, msg);
+	json += offs;
+	if(ret<0){
+		goto end;
+	}
+	json += skip_white_char(json);
+
+	if(*json!=':'){
+		ret = -1;
+		*msg = "need : after keyword.";
+		goto end;
+	}
+	json ++;
+	json += skip_white_char(json);
+
+	ret = json_parse_all(json, node, &offs, msg);
+	json += offs;
+
+end:
+	*offset = json - start;
+	return ret;
+}
+
+int json_parse_subnode(char *start, struct JSON *node, int *offset, char endstr, parse_func_t func, char **msg)
+{
+	int offs = 0;
+	char *json = start;
+	int ret = 0;
 	struct JSON *next = NULL;
 	struct JSON **newnode = &node->data.object;
 
@@ -119,15 +157,19 @@ int json_parse_subnode(char *start, struct JSON *node, int *offset, char endstr,
 	json += skip_white_char(json);
 	if(*json==endstr){
 		json ++;
-		ret = 0;
 		goto end;
 	}
 
 	do{
-		next = new_node();	
+		next = alloc_node();	
+		if(next==NULL){
+			*msg = "no memory.";
+			ret = -1;
+			goto end;
+		}
 		*newnode = next;
 		json += skip_white_char(json);
-		ret = func(json,next,&offs);	
+		ret = func(json, next, &offs, msg);	
 		json += offs;	
 		json += skip_white_char(json);
 		if(ret<0){
@@ -141,8 +183,13 @@ int json_parse_subnode(char *start, struct JSON *node, int *offset, char endstr,
 		json++;
 	}	
 	else {
-		printf("error at %s:%d:-->%s(%c)\n",__FUNCTION__,__LINE__,json,endstr);
 		ret = -1;
+		if(func==json_parse_all){
+			*msg = "missing terminating ] character";
+		}
+		else if(func==json_parse_key_value){
+			*msg = "missing terminating } character";
+		}
 	}	
 
 end:
@@ -150,54 +197,22 @@ end:
 	return ret;
 }
 
-int json_parse_all(char *start, struct JSON *node, int *offset);
-int json_parse_key_value(char *start, struct JSON *node, int *offset)
+int json_parse_string(char *start, struct JSON *node, int *offset, char **msg)
 {
-	int offs = 0;
-	char *json = start;
-	int ret = -1;
-
-	json += skip_white_char(json);
-	ret = get_next_string(json, &node->keyword, &offs);
-	json += offs;
-	if(ret<0){
-		goto end;
-	}
-	json += skip_white_char(json);
-
-	if(*json!=':'){
-		printf("error at %s:%d:-->%s\n",__FUNCTION__,__LINE__,json);
-		goto end;
-	}
-	json ++;
-	json += skip_white_char(json);
-
-	ret = json_parse_all(json, node, &offs);
-	json += offs;
-	if(ret<0){
-		goto end;
-	}
-end:
-	*offset = json - start;
-	return ret;
+	return get_next_string(start, &node->data.string, offset, msg);
 }
 
-int json_parse_string(char *start, struct JSON *node, int *offset)
+int json_parse_object(char *start, struct JSON *node, int *offset, char **msg)
 {
-	return get_next_string(start, &node->data.string, offset);
+	return json_parse_subnode(start, node, offset, '}', json_parse_key_value, msg);
 }
 
-int json_parse_object(char *start, struct JSON *node, int *offset)
+int json_parse_array(char *start, struct JSON *node, int *offset, char **msg)
 {
-	return json_parse_subnode(start, node, offset, '}', json_parse_key_value);
+	return json_parse_subnode(start, node, offset, ']', json_parse_all, msg);
 }
 
-int json_parse_array(char *start, struct JSON *node, int *offset)
-{
-	return json_parse_subnode(start, node, offset, ']', json_parse_all);
-}
-
-int json_parse_boolean(char *start, struct JSON *json, int *offset)
+int json_parse_boolean(char *start, struct JSON *json, int *offset, char **msg)
 {
 	if(strncmp(start,"true", 4)==0){
 		json->data.boolean = 1;
@@ -209,38 +224,42 @@ int json_parse_boolean(char *start, struct JSON *json, int *offset)
 		*offset = 5;
 		return 0;
 	}
-	printf("error at %s:%d:-->%s\n",__FUNCTION__,__LINE__,start);
+	*msg = "illegal string, it may be 'true' or 'false' here.";
 	return -1;
 }
 
-int json_parse_null(char *start, struct JSON *json, int *offset)
+int json_parse_null(char *start, struct JSON *json, int *offset, char **msg)
 {
 	if(strncmp(start,"null", 4)==0){
 		*offset = 4;
 		return 0;
 	}
-	printf("error at %s:%d:-->%s\n",__FUNCTION__,__LINE__,start);
+	*msg = "illegal string,it may be 'null' here.";
 	return -1;
 }
 
-int json_parse_number(char * start, struct JSON *node, int *offset)
+int json_parse_number(char * start, struct JSON *node, int *offset, char **msg)
 {
 	char *json;
 	char *json2;
+	int ret = 0;
 	long long int integer;
-	
+
 	node->data.number = strtod(start,&json);
+	if(json==start || isalpha(*json)){
+		*msg = "illegal number formate.";
+		ret = -1;
+		goto end;
+	}
+
 	integer = strtoll(start, &json2, 0); /*extend json type: integer */
 	if(json2==json){
-		node->type = "integer";	
-		node->data.integer = integer;
+		node->is_integer = 1;	
+		node->integer = integer;
 	}
-	if(json==start){
-		printf("error at %s:%d:-->%s\n",__FUNCTION__,__LINE__,json);
-		return -1;
-	}
+end:
 	*offset =  json - start;
-	return 0;
+	return ret;
 }
 
 struct json_parse_syntax json_syntax[] = 
@@ -253,7 +272,7 @@ struct json_parse_syntax json_syntax[] =
 	{"\"", json_parse_string, "string"}
 };
 
-int json_parse_all(char *start, struct JSON *node, int *offset)
+int json_parse_all(char *start, struct JSON *node, int *offset, char **msg)
 {
 	int ret = 0;
 	char *json = start;
@@ -267,21 +286,40 @@ int json_parse_all(char *start, struct JSON *node, int *offset)
 	if(*json=='\0'){
 		goto end;
 	}
-	
+
 	for(i = 0;i < len;i++){
 		if(match_syntax(json_syntax[i].start, json)){
 			node->type = json_syntax[i].type;
-			ret = json_syntax[i].func(json, node, &offs);
+			ret = json_syntax[i].func(json, node, &offs, msg);
 			json += offs;
 			goto end;
 		}
 	}
 
-	printf("%s:error at:%s",__FUNCTION__,json);
 	ret = -1;
+	*msg = "illegal character.";
 end:
 	*offset = json - start;
 	return ret;
+}
+
+void offset_to_line(char *string, int offset, int *line, int *ch)
+{
+	int index;
+	int lindex = 1,cindex = 1;
+	while(*string!='\0' && index<offset){
+		if(*string=='\n'){
+			lindex++;
+			cindex = 1;
+		}
+		else{
+			cindex++;
+		}
+		index++;
+		string++;
+	}
+	*line = lindex;
+	*ch = cindex;
 }
 
 struct JSON *json_parse(char *string)
@@ -289,13 +327,20 @@ struct JSON *json_parse(char *string)
 	struct JSON *root;
 	int ret = 0;
 	int offset = 0; 
+	char *msg = "no error.";
+	int line, c;
 
-	root = new_node();
-	ret = json_parse_all(string, root, &offset);
+	root = alloc_node();
+	if(root==NULL){
+		return NULL;
+	}
+	ret = json_parse_all(string, root, &offset, &msg);
 	if(ret==0){
 		return root;
 	}
 	else{
+		offset_to_line(string, offset, &line, &c);
+		printf("error at line:%d character:%d, %s\n", line, c, msg);
 		json_release(root);
 		return NULL;
 	}
@@ -308,7 +353,7 @@ struct JSON * json_parse_file(char *path)
 	FILE * fp = NULL;
 	struct JSON *json = NULL;
 
-	if(stat(path,&st)!=0||st.st_size==0){
+	if(stat(path,&st)!=0 || st.st_size==0){
 		return NULL;
 	}
 
@@ -318,6 +363,9 @@ struct JSON * json_parse_file(char *path)
 	}
 
 	buff = (char *)malloc(st.st_size + 10);
+	if(buff==NULL){
+		goto error;	
+	}
 	if(fread(buff, 1, st.st_size, fp) < 0){
 		goto error;
 	}
@@ -332,7 +380,7 @@ error:
 	return json;
 }
 
-void print_json_prefix(struct JSON *node,char * prefix)
+void print_json_prefix(struct JSON *node, char * prefix)
 {
 	char new_prefix[256];
 
@@ -349,10 +397,12 @@ void print_json_prefix(struct JSON *node,char * prefix)
 		printf("\"%s\"",node->data.string);
 	}
 	else if(strcmp(node->type,"number")==0){
-		printf("%f",node->data.number);
-	}
-	else if(strcmp(node->type,"integer")==0){
-		printf("%lld",node->data.integer);
+		if(node->is_integer){
+			printf("%lld",node->integer);
+		}
+		else{
+			printf("%f",node->data.number);
+		}
 	}
 	else if(strcmp(node->type,"boolean")==0){
 		printf("%s",node->data.boolean?"true":"false");
@@ -381,7 +431,7 @@ void print_json_prefix(struct JSON *node,char * prefix)
 		else {
 			printf("[]");
 		}
-        }
+	}
 	if(node->next){
 		printf(",\n");
 		print_json_prefix(node->next,prefix);
@@ -394,14 +444,13 @@ void print_json_prefix(struct JSON *node,char * prefix)
 void print_json(struct JSON *root){
 	print_json_prefix(root, "");
 }
-/*
-int main(int argc,char **argv)
+
+int main(int argc, char **argv)
 {
 	struct JSON * json = json_parse_file(argv[1]);
-	if(json!=NULL){
+	if(json != NULL){
 		print_json(json);
 		json_release(json);
 	}
 	return 0;
 }
-*/
